@@ -159,8 +159,6 @@ fn eat(
         // increasing player speed
         if *scored == 3 && *player_speed > 10 {
             screen.queue(MoveTo(col / 3, row / 2))?;
-            screen.queue(Print("Increasing Speed"))?;
-            screen.queue(Clear(ClearType::CurrentLine))?;
             *player_speed -= 10;
             *scored = 0;
             *level += 1;
@@ -240,8 +238,12 @@ fn main() -> std::io::Result<()> {
                     KeyCode::Char('d') => {
                         player_direction = DIRECTION::RIGHT;
                     }
+                    KeyCode::Enter => {
+                        break 'game;
+                    }
                     _ => {}
                 },
+
                 _ => {}
             }
         }
