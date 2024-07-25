@@ -117,8 +117,7 @@ fn game_over(
     rows: u16,
     player_score: u16,
 ) -> std::io::Result<()> {
-    screen.queue(MoveTo(columns - 11, 1))?;
-    screen.queue(Clear(ClearType::CurrentLine))?;
+    screen.queue(Clear(ClearType::All))?;
     screen.queue(MoveTo(columns / 3, rows / 2))?;
     screen.queue(Print("\nThank you.Game Over.\n"))?;
     screen.queue(MoveTo(columns / 3 + 3, rows / 2 + 1))?;
@@ -148,11 +147,26 @@ fn eat(
     col: u16,
     food: &mut Food,
     user_score: &mut u16,
+    scored: &mut u64,
+    player_speed: &mut u64,
+    level: &mut u64,
 ) -> std::io::Result<()> {
     if world.player_column == food.f_col && world.player_row == food.f_row {
         spawn_food(screen, row, col, food)?;
         *user_score += 1;
         screen.flush()?;
+
+        // increasing player speed
+        if *scored == 3 && *player_speed > 10 {
+            screen.queue(MoveTo(col / 3, row / 2))?;
+            screen.queue(Print("Increasing Speed"))?;
+            screen.queue(Clear(ClearType::CurrentLine))?;
+            *player_speed -= 10;
+            *scored = 0;
+            *level += 1;
+        } else {
+            *scored += 1;
+        }
     }
     Ok(())
 }
@@ -175,7 +189,10 @@ fn main() -> std::io::Result<()> {
         player_column: 1,
         player_row: 1,
     };
-    let player_speed = 80;
+
+    let mut scored = 0;
+    let mut player_speed = 80;
+    let mut current_level = 1;
 
     // player string
     let player = String::from("8");
@@ -232,6 +249,9 @@ fn main() -> std::io::Result<()> {
         screen.queue(MoveTo(columns - 11, 1))?;
         screen.queue(Print("Score:"))?;
         screen.queue(Print(player_score))?;
+        screen.queue(MoveTo(columns - 11, 2))?;
+        screen.queue(Print("Level:"))?;
+        screen.queue(Print(current_level))?;
 
         eat(
             &mut screen,
@@ -240,6 +260,9 @@ fn main() -> std::io::Result<()> {
             columns,
             &mut food,
             &mut player_score,
+            &mut scored,
+            &mut player_speed,
+            &mut current_level,
         )?;
 
         // draw screen
