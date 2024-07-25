@@ -10,10 +10,15 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, size, Clear, ClearType},
     ExecutableCommand, QueueableCommand,
 };
+use rand::Rng;
 
 struct World {
     player_row: u16,
     player_column: u16,
+}
+struct Food {
+    f_row: u16,
+    f_col: u16,
 }
 
 fn init_game(screen: &mut Stdout, row: u16, col: u16) -> std::io::Result<()> {
@@ -39,9 +44,9 @@ fn init_game(screen: &mut Stdout, row: u16, col: u16) -> std::io::Result<()> {
     Ok(())
 }
 
-fn draw_screen(screen: &mut Stdout, world: &World) -> std::io::Result<()> {
+fn draw_screen(screen: &mut Stdout, world: &World, player: String) -> std::io::Result<()> {
     screen.queue(MoveTo(world.player_column, world.player_row))?;
-    screen.queue(Print("P"))?;
+    screen.queue(Print(player))?;
     screen.flush()?;
     Ok(())
 }
@@ -50,6 +55,33 @@ fn clear_at_line(screen: &mut Stdout, row: u16, col: u16) -> std::io::Result<()>
     screen.queue(MoveTo(col, row))?;
     screen.queue(Print(" "))?;
     // screen.queue(Clear(ClearType::UntilNewLine))?;
+    Ok(())
+}
+
+fn spawn_food(screen: &mut Stdout, row: u16, col: u16, food: &mut Food) -> std::io::Result<()> {
+    let r_cor = rand::thread_rng().gen_range(3..row - 1);
+    let c_cor = rand::thread_rng().gen_range(3..col - 1);
+    screen.queue(MoveTo(c_cor, r_cor))?;
+    screen.queue(Print("*"))?;
+    screen.flush()?;
+    food.f_col = c_cor;
+    food.f_row = r_cor;
+    Ok(())
+}
+
+fn eat(
+    screen: &mut Stdout,
+    world: &World,
+    row: u16,
+    col: u16,
+    food: &mut Food,
+    user_score: &mut u16,
+) -> std::io::Result<()> {
+    if world.player_column == food.f_col && world.player_row == food.f_row {
+        spawn_food(screen, row, col, food)?;
+        *user_score += 1;
+        screen.flush()?;
+    }
     Ok(())
 }
 
@@ -72,8 +104,23 @@ fn main() -> std::io::Result<()> {
         player_row: 1,
     };
 
+    // player string
+    let player = String::from("8");
+
+    // food cor
+    let mut food = Food { f_col: 0, f_row: 0 };
+
     // clear terminal first
     init_game(&mut screen, rows, columns)?;
+
+    // spawn food
+    spawn_food(&mut screen, rows, columns, &mut food).unwrap();
+
+    // score shit
+    let mut player_score = 0;
+    screen.queue(MoveTo(columns - 11, 1))?;
+    screen.queue(Print("Score:"))?;
+    screen.queue(Print(player_score))?;
 
     // game loop
     'game: loop {
@@ -124,9 +171,23 @@ fn main() -> std::io::Result<()> {
                 _ => {}
             }
         }
+
         // do physics / calculation
+        screen.queue(MoveTo(columns - 11, 1))?;
+        screen.queue(Print("Score:"))?;
+        screen.queue(Print(player_score))?;
+
+        eat(
+            &mut screen,
+            &world,
+            rows,
+            columns,
+            &mut food,
+            &mut player_score,
+        )?;
+
         // draw screen
-        draw_screen(&mut screen, &world)?;
+        draw_screen(&mut screen, &world, player.clone())?;
     }
     screen.execute(Show)?;
     disable_raw_mode()?;
