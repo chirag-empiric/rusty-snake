@@ -1,5 +1,6 @@
 use std::{
     io::{stdout, Stdout, Write},
+    process::exit,
     time::Duration,
 };
 
@@ -59,6 +60,7 @@ fn draw_screen(
     rows: u16,
     columns: u16,
     to_where: DIRECTION,
+    player_score: u16,
 ) -> std::io::Result<()> {
     clear_at_line(screen, world.player_row, world.player_column)?;
     match to_where {
@@ -67,7 +69,7 @@ fn draw_screen(
             if world.player_row > 1 {
                 world.player_row -= 1;
             } else {
-                world.player_row = rows - 2;
+                game_over(screen, columns, rows, player_score)?;
             }
             clear_at_line(screen, world.player_row, world.player_column)?;
         }
@@ -76,7 +78,7 @@ fn draw_screen(
             if world.player_row < rows - 2 {
                 world.player_row += 1;
             } else {
-                world.player_row = 1;
+                game_over(screen, columns, rows, player_score)?;
             }
         }
         DIRECTION::RIGHT => {
@@ -84,7 +86,7 @@ fn draw_screen(
             if world.player_column < columns - 2 {
                 world.player_column += 1;
             } else {
-                world.player_column = 1;
+                game_over(screen, columns, rows, player_score)?;
             }
         }
         DIRECTION::LEFT => {
@@ -92,7 +94,7 @@ fn draw_screen(
             if world.player_column > 2 {
                 world.player_column -= 1;
             } else {
-                world.player_column = columns - 2;
+                game_over(screen, columns, rows, player_score)?;
             }
         }
     }
@@ -107,6 +109,25 @@ fn clear_at_line(screen: &mut Stdout, row: u16, col: u16) -> std::io::Result<()>
     screen.queue(MoveTo(col, row))?;
     screen.queue(Print(" "))?;
     Ok(())
+}
+
+fn game_over(
+    screen: &mut Stdout,
+    columns: u16,
+    rows: u16,
+    player_score: u16,
+) -> std::io::Result<()> {
+    screen.queue(MoveTo(columns - 11, 1))?;
+    screen.queue(Clear(ClearType::CurrentLine))?;
+    screen.queue(MoveTo(columns / 3, rows / 2))?;
+    screen.queue(Print("\nThank you.Game Over.\n"))?;
+    screen.queue(MoveTo(columns / 3 + 3, rows / 2 + 1))?;
+    screen.queue(Print("\nYour Score: "))?;
+    screen.queue(Print(player_score))?;
+    screen.queue(MoveTo(0, 0))?;
+    screen.execute(Show)?;
+    disable_raw_mode()?;
+    exit(0);
 }
 
 fn spawn_food(screen: &mut Stdout, row: u16, col: u16, food: &mut Food) -> std::io::Result<()> {
@@ -154,7 +175,7 @@ fn main() -> std::io::Result<()> {
         player_column: 1,
         player_row: 1,
     };
-    let player_speed = 50;
+    let player_speed = 80;
 
     // player string
     let player = String::from("8");
@@ -182,7 +203,11 @@ fn main() -> std::io::Result<()> {
             match reading {
                 crossterm::event::Event::Key(key_event) => match key_event.code {
                     KeyCode::Char('q') => {
+                        screen.queue(MoveTo(columns / 3, rows / 2))?;
                         screen.queue(Print("\nThank you.Game Over.\n"))?;
+                        screen.queue(MoveTo(columns / 3, rows / 2 + 1))?;
+                        screen.queue(Print("\nYour Score: "))?;
+                        screen.queue(Print(player_score))?;
                         screen.queue(MoveTo(0, 0))?;
                         break 'game;
                     }
@@ -225,6 +250,7 @@ fn main() -> std::io::Result<()> {
             rows,
             columns,
             player_direction.clone(),
+            player_score,
         )?;
     }
 
