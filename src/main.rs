@@ -6,7 +6,7 @@ use std::{
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{poll, read, KeyCode},
-    style::Print,
+    style::{Color, Print, Stylize},
     terminal::{disable_raw_mode, enable_raw_mode, size, Clear, ClearType},
     ExecutableCommand, QueueableCommand,
 };
@@ -19,6 +19,14 @@ struct World {
 struct Food {
     f_row: u16,
     f_col: u16,
+}
+
+#[derive(Clone)]
+enum DIRECTION {
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT,
 }
 
 fn init_game(screen: &mut Stdout, row: u16, col: u16) -> std::io::Result<()> {
@@ -44,9 +52,53 @@ fn init_game(screen: &mut Stdout, row: u16, col: u16) -> std::io::Result<()> {
     Ok(())
 }
 
-fn draw_screen(screen: &mut Stdout, world: &World, player: String) -> std::io::Result<()> {
+fn draw_screen(
+    screen: &mut Stdout,
+    world: &mut World,
+    player: String,
+    rows: u16,
+    columns: u16,
+    to_where: DIRECTION,
+) -> std::io::Result<()> {
+    clear_at_line(screen, world.player_row, world.player_column)?;
+    match to_where {
+        DIRECTION::UP => {
+            // go up shit
+            if world.player_row > 1 {
+                world.player_row -= 1;
+            } else {
+                world.player_row = rows - 2;
+            }
+            clear_at_line(screen, world.player_row, world.player_column)?;
+        }
+        DIRECTION::DOWN => {
+            // go down shit
+            if world.player_row < rows - 2 {
+                world.player_row += 1;
+            } else {
+                world.player_row = 1;
+            }
+        }
+        DIRECTION::RIGHT => {
+            // go right shit
+            if world.player_column < columns - 2 {
+                world.player_column += 1;
+            } else {
+                world.player_column = 1;
+            }
+        }
+        DIRECTION::LEFT => {
+            // go left shit
+            if world.player_column > 2 {
+                world.player_column -= 1;
+            } else {
+                world.player_column = columns - 2;
+            }
+        }
+    }
     screen.queue(MoveTo(world.player_column, world.player_row))?;
-    screen.queue(Print(player))?;
+    screen.queue(Print(player.with(Color::Red)))?;
+
     screen.flush()?;
     Ok(())
 }
@@ -54,7 +106,6 @@ fn draw_screen(screen: &mut Stdout, world: &World, player: String) -> std::io::R
 fn clear_at_line(screen: &mut Stdout, row: u16, col: u16) -> std::io::Result<()> {
     screen.queue(MoveTo(col, row))?;
     screen.queue(Print(" "))?;
-    // screen.queue(Clear(ClearType::UntilNewLine))?;
     Ok(())
 }
 
@@ -103,9 +154,11 @@ fn main() -> std::io::Result<()> {
         player_column: 1,
         player_row: 1,
     };
+    let player_speed = 50;
 
     // player string
     let player = String::from("8");
+    let mut player_direction = DIRECTION::RIGHT;
 
     // food cor
     let mut food = Food { f_col: 0, f_row: 0 };
@@ -124,8 +177,7 @@ fn main() -> std::io::Result<()> {
 
     // game loop
     'game: loop {
-        // read input
-        if poll(Duration::from_millis(500))? {
+        if poll(Duration::from_millis(player_speed))? {
             let reading = read().unwrap();
             match reading {
                 crossterm::event::Event::Key(key_event) => match key_event.code {
@@ -135,43 +187,22 @@ fn main() -> std::io::Result<()> {
                         break 'game;
                     }
                     KeyCode::Char('w') => {
-                        clear_at_line(&mut screen, world.player_row, world.player_column)?;
-                        if world.player_row > 1 {
-                            world.player_row -= 1;
-                        } else {
-                            world.player_row = rows - 2;
-                        }
+                        player_direction = DIRECTION::UP;
                     }
                     KeyCode::Char('s') => {
-                        clear_at_line(&mut screen, world.player_row, world.player_column)?;
-                        if world.player_row < rows - 2 {
-                            world.player_row += 1;
-                        } else {
-                            world.player_row = 1;
-                        }
+                        player_direction = DIRECTION::DOWN;
                     }
                     KeyCode::Char('a') => {
-                        clear_at_line(&mut screen, world.player_row, world.player_column)?;
-                        if world.player_column > 1 {
-                            world.player_column -= 1;
-                        } else {
-                            world.player_column = columns - 2;
-                        }
+                        player_direction = DIRECTION::LEFT;
                     }
                     KeyCode::Char('d') => {
-                        clear_at_line(&mut screen, world.player_row, world.player_column)?;
-                        if world.player_column < columns - 2 {
-                            world.player_column += 1;
-                        } else {
-                            world.player_column = 1;
-                        }
+                        player_direction = DIRECTION::RIGHT;
                     }
                     _ => {}
                 },
                 _ => {}
             }
         }
-
         // do physics / calculation
         screen.queue(MoveTo(columns - 11, 1))?;
         screen.queue(Print("Score:"))?;
@@ -187,9 +218,19 @@ fn main() -> std::io::Result<()> {
         )?;
 
         // draw screen
-        draw_screen(&mut screen, &world, player.clone())?;
+        draw_screen(
+            &mut screen,
+            &mut world,
+            player.clone(),
+            rows,
+            columns,
+            player_direction.clone(),
+        )?;
     }
+
+    // exit shit
     screen.execute(Show)?;
     disable_raw_mode()?;
+
     Ok(())
 }
